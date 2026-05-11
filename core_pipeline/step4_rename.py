@@ -31,14 +31,28 @@ def seleccionar_carpeta_madre():
     
     return carpeta if carpeta else None
 
+def _sanitizar_json(texto):
+    """Elimina caracteres de control inválidos dentro de strings JSON (ej. tabs literales)."""
+    import re
+    # Reemplaza caracteres de control (0x00-0x1F, excepto \n \r \t escapados) dentro de strings JSON
+    def limpiar_string(match):
+        contenido = match.group(0)
+        # Reemplaza tabs literales y otros control chars por espacio
+        contenido = re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f]', '', contenido)
+        contenido = contenido.replace('\t', ' ')
+        return contenido
+    return re.sub(r'"(?:[^"\\]|\\.)*"', limpiar_string, texto)
+
+
 def cargar_json(ruta_json):
-    """Carga el archivo JSON con manejo robusto de encodings."""
+    """Carga el archivo JSON con manejo robusto de encodings y sanitización de control chars."""
     encodings = ['utf-8', 'utf-8-sig', 'latin-1', 'cp1252']
-    
+
     for encoding in encodings:
         try:
             with open(ruta_json, 'r', encoding=encoding) as f:
-                datos = json.load(f)
+                texto = f.read()
+            datos = json.loads(_sanitizar_json(texto))
             print(f"  ✓ JSON cargado con encoding: {encoding}")
             logger.info(f"  ✓ JSON cargado con encoding: {encoding}")
             return datos
@@ -48,7 +62,7 @@ def cargar_json(ruta_json):
             print(f"  ✗ Error en estructura JSON: {e}")
             logger.error(f"  ✗ Error en estructura JSON: {e}")
             return None
-    
+
     print(f"  ✗ No se pudo leer el JSON con ningún encoding estándar")
     logger.error("  ✗ No se pudo leer el JSON con ningún encoding estándar")
     return None
