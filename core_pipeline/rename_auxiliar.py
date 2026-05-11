@@ -26,6 +26,16 @@ def find_json_candidates(folder_path: str | Path) -> list[str]:
     ]
 
 
+def _sanitizar_control_chars(texto: str) -> str:
+    """Elimina caracteres de control inválidos dentro de strings JSON."""
+    def limpiar_string(match):
+        contenido = match.group(0)
+        contenido = re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f]', '', contenido)
+        contenido = contenido.replace('\t', ' ')
+        return contenido
+    return re.sub(r'"(?:[^"\\]|\\.)*"', limpiar_string, texto)
+
+
 def load_json_with_fallback(json_path: str | Path) -> dict:
     path = Path(json_path).expanduser().resolve()
     encodings = ("utf-8", "utf-8-sig", "latin-1", "cp1252")
@@ -45,18 +55,20 @@ def load_json_with_fallback(json_path: str | Path) -> dict:
                 "sanitized": False,
             }
 
+        sanitized_text = _sanitizar_control_chars(raw_text)
+
         try:
             return {
                 "success": True,
                 "status": "ok",
                 "message": "JSON cargado correctamente.",
-                "data": json.loads(raw_text),
+                "data": json.loads(sanitized_text),
                 "encoding": encoding,
-                "sanitized": False,
+                "sanitized": sanitized_text != raw_text,
             }
         except json.JSONDecodeError:
-            sanitized_text = re.sub(r",(\s*[\]}])", r"\1", raw_text)
-            if sanitized_text == raw_text:
+            trailing_fixed = re.sub(r",(\s*[\]}])", r"\1", sanitized_text)
+            if trailing_fixed == sanitized_text:
                 continue
 
             try:
@@ -64,7 +76,7 @@ def load_json_with_fallback(json_path: str | Path) -> dict:
                     "success": True,
                     "status": "ok",
                     "message": "JSON cargado con correccion automatica de coma final.",
-                    "data": json.loads(sanitized_text),
+                    "data": json.loads(trailing_fixed),
                     "encoding": encoding,
                     "sanitized": True,
                 }

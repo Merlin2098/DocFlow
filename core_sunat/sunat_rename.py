@@ -84,24 +84,38 @@ class JSONReader:
         logger.info(f"📖 Leyendo JSON: {os.path.basename(json_path)}")
         
         encodings = ['utf-8', 'latin-1', 'iso-8859-1', 'cp1252', 'utf-16']
-        
+
         data = None
         for encoding in encodings:
             try:
                 with open(json_path, 'r', encoding=encoding) as f:
-                    data = json.load(f)
+                    raw_text = f.read()
+                data = json.loads(self._sanitizar_json(raw_text))
                 break
             except (UnicodeDecodeError, UnicodeError):
                 continue
+            except json.JSONDecodeError as e:
+                raise Exception(f"Error al leer JSON: {str(e)}")
             except Exception as e:
                 raise Exception(f"Error al leer JSON: {str(e)}")
-        
+
         if data is None:
             error_msg = "No se pudo decodificar el archivo JSON con ninguna codificación conocida"
             logger.error(error_msg)
             raise Exception(error_msg)
-        
+
         return data
+
+    @staticmethod
+    def _sanitizar_json(texto):
+        """Elimina caracteres de control inválidos dentro de strings JSON."""
+        import re
+        def limpiar_string(match):
+            contenido = match.group(0)
+            contenido = re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f]', '', contenido)
+            contenido = contenido.replace('\t', ' ')
+            return contenido
+        return re.sub(r'"(?:[^"\\]|\\.)*"', limpiar_string, texto)
     
     def build_rename_mapping(self, data):
         """
